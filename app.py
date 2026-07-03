@@ -22,7 +22,7 @@ import plotly.graph_objects as go
 from datetime import date, datetime
 
 import database as db
-from utils import format_rupiah, inject_css, kpi_card, section_title
+from utils import format_rupiah, inject_css, kpi_card, section_title, icon_kategori_produk, icon_kategori_jurnal
 
 # ---------------------------------------------------------------------------
 # KONFIGURASI HALAMAN
@@ -88,8 +88,8 @@ with st.sidebar:
 st.markdown(
     """
     <div class="app-header">
-        <h1>🌸 SIAK Aromatic</h1>
-        <p>Sistem Informasi Akuntansi Toko Parfum — Data Master, Transaksi, Jurnal, dan Laporan Terintegrasi</p>
+        <h1>🌸 SIAK Aromatic 🧴</h1>
+        <p>Sistem Informasi Akuntansi Toko Parfum — Data Master, Transaksi, Jurnal, dan Laporan Terintegrasi ✨</p>
     </div>
     """,
     unsafe_allow_html=True,
@@ -104,29 +104,29 @@ def halaman_dashboard():
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        kpi_card("Saldo Kas", format_rupiah(stats["saldo_kas"]), "Saldo berjalan terakhir")
+        kpi_card("Saldo Kas", format_rupiah(stats["saldo_kas"]), "Saldo berjalan terakhir", icon="🏦")
     with c2:
         kpi_card("Total Penjualan", format_rupiah(stats["total_penjualan"]),
-                  f"{stats['total_qty_terjual']} pcs terjual")
+                  f"{stats['total_qty_terjual']} pcs terjual", icon="💰")
     with c3:
-        kpi_card("Total Pembelian", format_rupiah(stats["total_pembelian"]), "Belanja bahan/produk")
+        kpi_card("Total Pembelian", format_rupiah(stats["total_pembelian"]), "Belanja bahan/produk", icon="🛍️")
     with c4:
         laba = stats["laba_kotor"]
-        badge = "badge-green" if laba >= 0 else "badge-red"
         label = "Laba Kotor" if laba >= 0 else "Rugi Kotor"
-        kpi_card(label, format_rupiah(laba), "Penjualan − Pembelian")
+        icon = "📈" if laba >= 0 else "📉"
+        kpi_card(label, format_rupiah(laba), "Penjualan − Pembelian", icon=icon)
 
     st.write("")
     c5, c6, c7, c8 = st.columns(4)
     with c5:
-        kpi_card("Jumlah Produk", str(stats["total_produk"]), "Item dalam katalog")
+        kpi_card("Jumlah Produk", str(stats["total_produk"]), "Item dalam katalog", icon="🧴")
     with c6:
-        kpi_card("Jumlah Pelanggan", str(stats["total_pelanggan"]), "Pelanggan terdaftar")
+        kpi_card("Jumlah Pelanggan", str(stats["total_pelanggan"]), "Pelanggan terdaftar", icon="🧑‍🤝‍🧑")
     with c7:
-        kpi_card("Jumlah Supplier", str(stats["total_supplier"]), "Mitra pemasok")
+        kpi_card("Jumlah Supplier", str(stats["total_supplier"]), "Mitra pemasok", icon="🚚")
     with c8:
         warn = "⚠️ Perlu restock" if stats["stok_menipis"] > 0 else "✅ Stok aman"
-        kpi_card("Stok Menipis", str(stats["stok_menipis"]), warn)
+        kpi_card("Stok Menipis", str(stats["stok_menipis"]), warn, icon="📦")
 
     st.write("")
     st.write("")
@@ -235,10 +235,20 @@ def halaman_master():
             st.info("Belum ada data produk.")
         else:
             df_show = df_produk.copy()
+            df_show["nama"] = df_show.apply(
+                lambda r: f"{icon_kategori_produk(r['kategori'])} {r['nama']}", axis=1
+            )
             df_show["harga_beli"] = df_show["harga_beli"].apply(format_rupiah)
             df_show["harga_jual"] = df_show["harga_jual"].apply(format_rupiah)
             cols = ["kode", "nama", "kategori", "satuan", "harga_beli", "harga_jual", "stok"]
-            st.dataframe(df_show[cols], use_container_width=True, hide_index=True)
+            st.dataframe(
+                df_show[cols], use_container_width=True, hide_index=True,
+                column_config={
+                    "kode": "Kode", "nama": "Nama Produk", "kategori": "Kategori",
+                    "satuan": "Satuan", "harga_beli": "Harga Beli", "harga_jual": "Harga Jual",
+                    "stok": st.column_config.NumberColumn("Stok", help="Sisa stok saat ini"),
+                },
+            )
 
             with st.expander("🗑️ Hapus Produk"):
                 opsi = {f"{r.kode} - {r.nama}": r.id for r in df_produk.itertuples()}
@@ -349,7 +359,10 @@ def halaman_transaksi():
                     pelanggan_opsi = {f"{r['kode']} - {r['nama']}": r["id"] for r in pelanggan_rows}
                     pel_pilih = st.selectbox("Pelanggan", list(pelanggan_opsi.keys()))
                 with c2:
-                    produk_opsi = {f"{r['kode']} - {r['nama']} (stok: {r['stok']})": r for r in produk_rows}
+                    produk_opsi = {
+                        f"{icon_kategori_produk(r['kategori'])} {r['kode']} - {r['nama']} (stok: {r['stok']})": r
+                        for r in produk_rows
+                    }
                     prod_pilih = st.selectbox("Produk", list(produk_opsi.keys()))
                     prod_row = produk_opsi[prod_pilih]
 
@@ -402,7 +415,10 @@ def halaman_transaksi():
                     supplier_opsi = {f"{r['kode']} - {r['nama']}": r["id"] for r in supplier_rows}
                     sup_pilih = st.selectbox("Supplier", list(supplier_opsi.keys()))
                 with c2:
-                    produk_opsi = {f"{r['kode']} - {r['nama']}": r for r in produk_rows}
+                    produk_opsi = {
+                        f"{icon_kategori_produk(r['kategori'])} {r['kode']} - {r['nama']}": r
+                        for r in produk_rows
+                    }
                     prod_pilih = st.selectbox("Produk / Bahan", list(produk_opsi.keys()), key="prod_beli")
                     prod_row = produk_opsi[prod_pilih]
 
@@ -534,6 +550,9 @@ def halaman_laporan():
             st.info("Tidak ada data jurnal pada filter yang dipilih.")
         else:
             df_show = df_jurnal.copy()
+            df_show["kategori"] = df_show["kategori"].apply(
+                lambda k: f"{icon_kategori_jurnal(k)} {k}"
+            )
             df_show["debit"] = df_show["debit"].apply(format_rupiah)
             df_show["kredit"] = df_show["kredit"].apply(format_rupiah)
             df_show["saldo"] = df_show["saldo"].apply(format_rupiah)
